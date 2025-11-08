@@ -1,133 +1,42 @@
 const mongoose = require('mongoose');
 
-const VideoSchema = new mongoose.Schema({
+const videoSchema = new mongoose.Schema({
   title: {
     type: String,
     required: [true, 'Video başlığı gerekli'],
     trim: true,
-    maxlength: [200, 'Başlık en fazla 200 karakter olabilir']
+    maxlength: 200,
+    index: true
   },
-  description: {
-    type: String,
-    maxlength: [2000, 'Açıklama en fazla 2000 karakter olabilir']
-  },
-  driveId: {
-    type: String,
-    required: [true, 'Google Drive ID gerekli'],
-    unique: true
-  },
-  driveUrl: {
-    type: String,
-    required: [true, 'Google Drive URL gerekli']
-  },
-  poster: {
-    type: String,
-    default: function() {
-      return `https://lh3.googleusercontent.com/d/${this.driveId}`;
-    }
-  },
-  duration: {
-    type: Number,
-    default: 0
-  },
+  description: { type: String, trim: true, maxlength: 2000 },
+  driveId: { type: String, required: true, unique: true, index: true },
+  driveUrl: { type: String, required: true },
+  poster: String,
   category: {
     type: String,
-    enum: ['movie', 'series', 'documentary', 'anime', 'music', 'educational', 'other'],
-    default: 'other'
+    enum: ['movie', 'series', 'documentary', 'educational', 'other'],
+    default: 'other',
+    index: true
   },
-  tags: [{
-    type: String,
-    trim: true
-  }],
-  owner: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  views: {
-    type: Number,
-    default: 0
-  },
-  likes: {
-    type: Number,
-    default: 0
-  },
-  dislikes: {
-    type: Number,
-    default: 0
-  },
-  isPublic: {
-    type: Boolean,
-    default: true
-  },
-  allowedDomains: [{
-    type: String
-  }],
-  subtitles: [{
-    language: String,
-    label: String,
-    url: String,
-    isDefault: Boolean
-  }],
-  quality: [{
-    resolution: String,
-    url: String,
-    size: Number
-  }],
-  metadata: {
-    fileSize: Number,
-    mimeType: String,
-    uploadDate: Date
-  },
-  analytics: {
-    dailyViews: [{
-      date: Date,
-      count: Number
-    }],
-    averageWatchTime: Number,
-    completionRate: Number
-  },
-  status: {
-    type: String,
-    enum: ['active', 'processing', 'inactive', 'deleted'],
-    default: 'active'
-  }
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
+  tags: [{ type: String, lowercase: true }],
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  views: { type: Number, default: 0 },
+  likes: { type: Number, default: 0 },
+  subtitles: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subtitle' }],
+  isPublic: { type: Boolean, default: true },
+  allowedDomains: [String],
+  createdAt: { type: Date, default: Date.now, index: true }
+}, { timestamps: true });
 
-// Indexes
-VideoSchema.index({ title: 'text', description: 'text', tags: 'text' });
-VideoSchema.index({ category: 1, createdAt: -1 });
-VideoSchema.index({ owner: 1 });
-VideoSchema.index({ views: -1 });
+videoSchema.index({ createdAt: -1 });
+videoSchema.index({ views: -1 });
+videoSchema.index({ title: 'text', description: 'text' });
 
-// Virtual for embed URL
-VideoSchema.virtual('embedUrl').get(function() {
-  return `https://anbarci.github.io/DrivePlyr/plyr.html?id=${this.driveId}`;
-});
-
-// Increment view count
-VideoSchema.methods.incrementViews = async function() {
-  this.views += 1;
-  
-  // Update daily analytics
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const todayAnalytics = this.analytics.dailyViews.find(
-    view => view.date.getTime() === today.getTime()
-  );
-  
-  if (todayAnalytics) {
-    todayAnalytics.count += 1;
-  } else {
-    this.analytics.dailyViews.push({ date: today, count: 1 });
-  }
-  
-  await this.save();
+videoSchema.methods.getEmbedCode = function(playerType = 'plyr', width = 560, height = 315) {
+  const encodedUrl = encodeURIComponent(this.driveUrl);
+  const encodedTitle = encodeURIComponent(this.title);
+  const baseUrl = process.env.FRONTEND_URL || 'https://driveplyr.com';
+  return `<iframe width="${width}" height="${height}" src="${baseUrl}/player.html?videoUrl=${encodedUrl}&title=${encodedTitle}&player=${playerType}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
 };
 
-module.exports = mongoose.model('Video', VideoSchema);
+module.exports = mongoose.model('Video', videoSchema);

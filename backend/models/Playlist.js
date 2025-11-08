@@ -1,147 +1,42 @@
 const mongoose = require('mongoose');
 
-const PlaylistSchema = new mongoose.Schema({
+const playlistSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: [true, 'Playlist adı gerekli'],
+    required: true,
     trim: true,
-    maxlength: [100, 'Playlist adı en fazla 100 karakter olabilir']
+    maxlength: 100,
+    index: true
   },
-  description: {
-    type: String,
-    maxlength: [500, 'Açıklama en fazla 500 karakter olabilir']
-  },
-  owner: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
+  description: { type: String, trim: true, maxlength: 500 },
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   videos: [{
-    video: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Video'
-    },
-    order: {
-      type: Number,
-      default: 0
-    },
-    addedAt: {
-      type: Date,
-      default: Date.now
-    }
+    video: { type: mongoose.Schema.Types.ObjectId, ref: 'Video' },
+    order: Number,
+    addedAt: { type: Date, default: Date.now }
   }],
-  thumbnail: {
-    type: String
-  },
-  isPublic: {
-    type: Boolean,
-    default: true
-  },
-  category: {
-    type: String,
-    enum: ['movie', 'series', 'documentary', 'anime', 'music', 'educational', 'mixed', 'other'],
-    default: 'other'
-  },
-  tags: [{
-    type: String,
-    trim: true
-  }],
-  views: {
-    type: Number,
-    default: 0
-  },
-  likes: {
-    type: Number,
-    default: 0
-  },
-  collaborators: [{
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    permissions: [{
-      type: String,
-      enum: ['view', 'edit', 'add_videos', 'remove_videos', 'manage']
-    }],
-    addedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  status: {
-    type: String,
-    enum: ['active', 'inactive', 'deleted'],
-    default: 'active'
-  }
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
+  poster: String,
+  isPublic: { type: Boolean, default: false },
+  views: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now, index: true }
+}, { timestamps: true });
 
-// Indexes
-PlaylistSchema.index({ name: 'text', description: 'text' });
-PlaylistSchema.index({ owner: 1, createdAt: -1 });
-PlaylistSchema.index({ category: 1 });
-
-// Virtual for video count
-PlaylistSchema.virtual('videoCount').get(function() {
+playlistSchema.virtual('videoCount').get(function() {
   return this.videos.length;
 });
 
-// Virtual for total duration
-PlaylistSchema.virtual('totalDuration').get(function() {
-  return this.videos.reduce((total, item) => {
-    return total + (item.video?.duration || 0);
-  }, 0);
-});
-
-// Method to add video to playlist
-PlaylistSchema.methods.addVideo = async function(videoId, order) {
-  const exists = this.videos.some(item => 
-    item.video.toString() === videoId.toString()
-  );
-  
-  if (exists) {
-    throw new Error('Video playlist\'te zaten mevcut');
+playlistSchema.methods.addVideo = function(videoId, order) {
+  const videoExists = this.videos.some(v => v.video.toString() === videoId);
+  if (!videoExists) {
+    this.videos.push({ video: videoId, order: order !== undefined ? order : this.videos.length });
+    return this.save();
   }
-  
-  this.videos.push({
-    video: videoId,
-    order: order || this.videos.length,
-    addedAt: new Date()
-  });
-  
-  await this.save();
+  throw new Error('Video zaten bu playlistte var');
 };
 
-// Method to remove video from playlist
-PlaylistSchema.methods.removeVideo = async function(videoId) {
-  this.videos = this.videos.filter(item => 
-    item.video.toString() !== videoId.toString()
-  );
-  
-  // Reorder remaining videos
-  this.videos.forEach((item, index) => {
-    item.order = index;
-  });
-  
-  await this.save();
+playlistSchema.methods.removeVideo = function(videoId) {
+  this.videos = this.videos.filter(v => v.video.toString() !== videoId);
+  return this.save();
 };
 
-// Method to reorder videos
-PlaylistSchema.methods.reorderVideos = async function(videoOrders) {
-  videoOrders.forEach(({ videoId, order }) => {
-    const video = this.videos.find(item => 
-      item.video.toString() === videoId.toString()
-    );
-    if (video) {
-      video.order = order;
-    }
-  });
-  
-  this.videos.sort((a, b) => a.order - b.order);
-  await this.save();
-};
-
-module.exports = mongoose.model('Playlist', PlaylistSchema);
+module.exports = mongoose.model('Playlist', playlistSchema);
