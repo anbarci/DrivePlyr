@@ -1,237 +1,105 @@
 const express = require('express');
-const router = express.Router();
-const { body, validationResult } = require('express-validator');
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const { registerValidationRules, loginValidationRules, validate } = require('../middleware/validation');
 
-// @route   POST /api/auth/register
-// @desc    Register new user
-// @access  Public
-router.post('/register', [
-  body('username').trim().isLength({ min: 3 }).withMessage('Kullanıcı adı en az 3 karakter olmalı'),
-  body('email').isEmail().withMessage('Geçerli email adresi girin'),
-  body('password').isLength({ min: 6 }).withMessage('Şifre en az 6 karakter olmalı')
-], async (req, res) => {
+const router = express.Router();
+
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE || '7d'
+  });
+};
+
+router.post('/register', registerValidationRules(), validate, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        status: 'error', 
-        errors: errors.array() 
-      });
-    }
-
     const { username, email, password } = req.body;
-
-    // Check if user exists
+    
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
     if (userExists) {
-      return res.status(400).json({ 
-        status: 'error', 
-        message: 'Kullanıcı zaten mevcut' 
-      });
+      return res.status(400).json({ success: false, message: 'Kullanıcı zaten kayıtlı' });
     }
 
-    // Create user
-    const user = await User.create({
-      username,
-      email,
-      password
-    });
-
-    // Set role permissions
-    user.setRolePermissions();
-    await user.save();
-
-    // Generate token
-    const token = user.getSignedJwtToken();
+    const user = await User.create({ username, email, password });
+    const token = generateToken(user._id);
 
     res.status(201).json({
-      status: 'success',
+      success: true,
       token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        permissions: user.permissions
-      }
+      user: { id: user._id, username: user.username, email: user.email, role: user.role }
     });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   POST /api/auth/login
-// @desc    Login user
-// @access  Public
-router.post('/login', [
-  body('email').isEmail().withMessage('Geçerli email adresi girin'),
-  body('password').notEmpty().withMessage('Şifre gerekli')
-], async (req, res) => {
+router.post('/login', loginValidationRules(), validate, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        status: 'error', 
-        errors: errors.array() 
-      });
-    }
-
     const { email, password } = req.body;
 
-    // Find user
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return res.status(401).json({ 
-        status: 'error', 
-        message: 'Kullanıcı adı veya şifre hatalı' 
-      });
+      return res.status(401).json({ success: false, message: 'Geçersiz kimlik bilgileri' });
     }
 
-    // Check if account is active
-    if (!user.isActive) {
-      return res.status(401).json({ 
-        status: 'error', 
-        message: 'Hesabınız devre dışı' 
-      });
-    }
-
-    // Check password
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await user.matchPassword(password);
     if (!isMatch) {
-      return res.status(401).json({ 
-        status: 'error', 
-        message: 'Kullanıcı adı veya şifre hatalı' 
-      });
+      return res.status(401).json({ success: false, message: 'Geçersiz kimlik bilgileri' });
     }
 
-    // Update last login
-    user.lastLogin = Date.now();
+    user.lastLogin = new Date();
     await user.save();
 
-    // Generate token
-    const token = user.getSignedJwtToken();
-
+    const token = generateToken(user._id);
     res.json({
-      status: 'success',
+      success: true,
       token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        permissions: user.permissions,
-        avatar: user.avatar
-      }
+      user: { id: user._id, username: user.username, email: user.email, role: user.role }
     });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   GET /api/auth/me
-// @desc    Get current user
-// @access  Private
 router.get('/me', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    res.json({
-      status: 'success',
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        permissions: user.permissions,
-        avatar: user.avatar,
-        createdAt: user.createdAt
-      }
-    });
+    const user = await User.findById(req.user._id);
+    res.json({ success: true, user });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   PUT /api/auth/updateprofile
-// @desc    Update user profile
-// @access  Private
 router.put('/updateprofile', protect, async (req, res) => {
   try {
-    const { username, email, avatar } = req.body;
-    
-    const user = await User.findById(req.user.id);
-    
-    if (username) user.username = username;
-    if (email) user.email = email;
-    if (avatar) user.avatar = avatar;
-    
-    await user.save();
-    
-    res.json({
-      status: 'success',
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        avatar: user.avatar
-      }
-    });
+    const { username, avatar, bio } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { username, avatar, bio },
+      { new: true, runValidators: true }
+    );
+    res.json({ success: true, user });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   PUT /api/auth/changepassword
-// @desc    Change password
-// @access  Private
-router.put('/changepassword', protect, [
-  body('currentPassword').notEmpty().withMessage('Mevcut şifre gerekli'),
-  body('newPassword').isLength({ min: 6 }).withMessage('Yeni şifre en az 6 karakter olmalı')
-], async (req, res) => {
+router.put('/changepassword', protect, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        status: 'error', 
-        errors: errors.array() 
-      });
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user._id).select('+password');
+
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Geçersiz mevcut Şifre' });
     }
 
-    const user = await User.findById(req.user.id).select('+password');
-    
-    const isMatch = await user.comparePassword(req.body.currentPassword);
-    if (!isMatch) {
-      return res.status(401).json({ 
-        status: 'error', 
-        message: 'Mevcut şifre hatalı' 
-      });
-    }
-    
-    user.password = req.body.newPassword;
+    user.password = newPassword;
     await user.save();
-    
-    res.json({
-      status: 'success',
-      message: 'Şifre başarıyla değiştirildi'
-    });
+    res.json({ success: true, message: 'Şifre başarıyla değiştirildi' });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

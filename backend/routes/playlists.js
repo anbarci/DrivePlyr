@@ -1,273 +1,97 @@
 const express = require('express');
-const router = express.Router();
-const { body, validationResult } = require('express-validator');
 const Playlist = require('../models/Playlist');
 const { protect } = require('../middleware/auth');
 
-// @route   GET /api/playlists
-// @desc    Get all playlists
-// @access  Public
-router.get('/', async (req, res) => {
+const router = express.Router();
+
+router.get('/', protect, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
 
-    const query = { status: 'active', isPublic: true };
-    
-    if (req.query.category) {
-      query.category = req.query.category;
-    }
-    
-    if (req.query.owner) {
-      query.owner = req.query.owner;
-    }
-
-    const playlists = await Playlist.find(query)
-      .populate('owner', 'username avatar')
-      .populate('videos.video', 'title poster duration')
+    const playlists = await Playlist.find({ owner: req.user._id })
+      .limit(limit)
+      .skip((page - 1) * limit)
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+      .populate('videos.video');
 
-    const total = await Playlist.countDocuments(query);
+    const total = await Playlist.countDocuments({ owner: req.user._id });
 
     res.json({
-      status: 'success',
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      },
-      data: playlists
+      success: true,
+      playlists,
+      totalPages: Math.ceil(total / limit)
     });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   GET /api/playlists/:id
-// @desc    Get single playlist
-// @access  Public
 router.get('/:id', async (req, res) => {
   try {
     const playlist = await Playlist.findById(req.params.id)
-      .populate('owner', 'username avatar')
-      .populate('videos.video', 'title poster duration driveId views');
+      .populate('videos.video')
+      .populate('owner', 'username avatar');
 
     if (!playlist) {
-      return res.status(404).json({ 
-        status: 'error', 
-        message: 'Playlist bulunamadı' 
-      });
+      return res.status(404).json({ success: false, message: 'Playlist bulunamadı' });
     }
 
-    // Increment views
-    playlist.views += 1;
-    await playlist.save();
-
-    res.json({
-      status: 'success',
-      data: playlist
-    });
+    res.json({ success: true, playlist });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   POST /api/playlists
-// @desc    Create playlist
-// @access  Private
-router.post('/', protect, [
-  body('name').trim().notEmpty().withMessage('Playlist adı gerekli')
-], async (req, res) => {
+router.post('/', protect, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        status: 'error', 
-        errors: errors.array() 
-      });
-    }
+    const { name, description, category, poster } = req.body;
 
     const playlist = await Playlist.create({
-      ...req.body,
-      owner: req.user.id
+      name,
+      description,
+      category,
+      poster,
+      owner: req.user._id
     });
 
-    res.status(201).json({
-      status: 'success',
-      data: playlist
-    });
+    res.status(201).json({ success: true, playlist });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   PUT /api/playlists/:id
-// @desc    Update playlist
-// @access  Private (owner or collaborator)
-router.put('/:id', protect, async (req, res) => {
+router.post('/:id/videos', protect, async (req, res) => {
   try {
-    let playlist = await Playlist.findById(req.params.id);
-
-    if (!playlist) {
-      return res.status(404).json({ 
-        status: 'error', 
-        message: 'Playlist bulunamadı' 
-      });
-    }
-
-    // Check ownership
-    if (playlist.owner.toString() !== req.user.id) {
-      return res.status(403).json({ 
-        status: 'error', 
-        message: 'Bu işlemi yapmaya yetkiniz yok' 
-      });
-    }
-
-    playlist = await Playlist.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    res.json({
-      status: 'success',
-      data: playlist
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
-  }
-});
-
-// @route   DELETE /api/playlists/:id
-// @desc    Delete playlist
-// @access  Private (owner only)
-router.delete('/:id', protect, async (req, res) => {
-  try {
+    const { videoId, order } = req.body;
     const playlist = await Playlist.findById(req.params.id);
 
     if (!playlist) {
-      return res.status(404).json({ 
-        status: 'error', 
-        message: 'Playlist bulunamadı' 
-      });
+      return res.status(404).json({ success: false, message: 'Playlist bulunamadı' });
     }
 
-    if (playlist.owner.toString() !== req.user.id) {
-      return res.status(403).json({ 
-        status: 'error', 
-        message: 'Bu işlemi yapmaya yetkiniz yok' 
-      });
+    if (playlist.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Yetkisiz işem' });
     }
 
-    await playlist.remove();
-
-    res.json({
-      status: 'success',
-      message: 'Playlist silindi'
-    });
+    await playlist.addVideo(videoId, order);
+    res.json({ success: true, playlist });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   POST /api/playlists/:id/videos
-// @desc    Add video to playlist
-// @access  Private
-router.post('/:id/videos', protect, [
-  body('videoId').notEmpty().withMessage('Video ID gerekli')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        status: 'error', 
-        errors: errors.array() 
-      });
-    }
-
-    const playlist = await Playlist.findById(req.params.id);
-
-    if (!playlist) {
-      return res.status(404).json({ 
-        status: 'error', 
-        message: 'Playlist bulunamadı' 
-      });
-    }
-
-    if (playlist.owner.toString() !== req.user.id) {
-      return res.status(403).json({ 
-        status: 'error', 
-        message: 'Bu işlemi yapmaya yetkiniz yok' 
-      });
-    }
-
-    await playlist.addVideo(req.body.videoId, req.body.order);
-
-    res.json({
-      status: 'success',
-      message: 'Video playlist\'e eklendi',
-      data: playlist
-    });
-  } catch (error) {
-    res.status(400).json({ 
-      status: 'error', 
-      message: error.message 
-    });
-  }
-});
-
-// @route   DELETE /api/playlists/:id/videos/:videoId
-// @desc    Remove video from playlist
-// @access  Private
 router.delete('/:id/videos/:videoId', protect, async (req, res) => {
   try {
     const playlist = await Playlist.findById(req.params.id);
-
-    if (!playlist) {
-      return res.status(404).json({ 
-        status: 'error', 
-        message: 'Playlist bulunamadı' 
-      });
-    }
-
-    if (playlist.owner.toString() !== req.user.id) {
-      return res.status(403).json({ 
-        status: 'error', 
-        message: 'Bu işlemi yapmaya yetkiniz yok' 
-      });
+    if (playlist.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Yetkisiz işem' });
     }
 
     await playlist.removeVideo(req.params.videoId);
-
-    res.json({
-      status: 'success',
-      message: 'Video playlist\'ten çıkarıldı',
-      data: playlist
-    });
+    res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
