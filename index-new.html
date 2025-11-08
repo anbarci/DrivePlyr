@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DrivePlyr - Google Drive Video Player</title>
+  
+  <meta name="description" content="Professional Google Drive video player with multiple player options, subtitle support, and analytics.">
+  <meta name="keywords" content="DrivePlyr, Google Drive, Video Player, HTML5, Streaming">
+  <meta name="author" content="DrivePlyr">
+  <meta property="og:title" content="DrivePlyr - Google Drive Video Player">
+  <meta property="og:description" content="Stream videos from Google Drive with advanced player options">
+  <meta property="og:type" content="website">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#8b5cf6">
+  
+  <link rel="icon" href="drive-logo.png" type="image/png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+      color: #fff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
+    }
+    
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .gradient-text {
+      background: linear-gradient(135deg, #8b5cf6, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .hover-scale { transition: transform 0.3s ease; }
+    .hover-scale:hover { transform: scale(1.05); }
+    
+    .card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(139, 92, 246, 0.3);
+      transform: translateY(-4px);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(139, 92, 246, 0.4);
+    }
+    
+    .input-field {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+    }
+    
+    .input-field:focus {
+      outline: none;
+      background: rgba(255, 255, 255, 0.1);
+      border-color: #8b5cf6;
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+    }
+    
+    .player-card {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .player-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, #8b5cf6, #ec4899);
+    }
+    
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .animate-in { animation: slideInUp 0.6s ease forwards; }
+    
+    @media (max-width: 768px) {
+      .container { padding: 16px; }
+      .glass { padding: 16px !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="backdrop-blur-md bg-black/20 sticky top-0 z-50 border-b border-white/10">
+    <div class="container mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="drive-logo.png" alt="DrivePlyr" class="h-10 w-10 hover-scale">
+        <h1 class="text-2xl font-bold gradient-text hidden sm:block">DrivePlyr</h1>
+      </div>
+      <nav class="flex items-center gap-6">
+        <a href="#" class="text-sm hover:text-purple-400 transition">Ana Sayfa</a>
+        <a href="#features" class="text-sm hover:text-purple-400 transition">Özellikler</a>
+        <a href="/admin/login.html" class="btn-primary text-sm">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="py-12 md:py-20">
+    <div class="container mx-auto px-4">
+      <div class="glass rounded-2xl p-8 md:p-12 text-center animate-in">
+        <img src="drive-logo.png" alt="Logo" class="h-20 mx-auto mb-6">
+        <h2 class="text-4xl md:text-5xl font-bold mb-4 gradient-text">DrivePlyr</h2>
+        <p class="text-gray-300 mb-8 text-lg">Google Drive videolarını profesyonel oynatıcılarla yayınlayın</p>
+        
+        <div class="space-y-4">
+          <div>
+            <label for="videourl" class="block text-sm font-semibold mb-2">Google Drive Video Linki</label>
+            <input type="url" id="videourl" placeholder="https://drive.google.com/file/d/..." class="input-field w-full">
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="videotitle" class="block text-sm font-semibold mb-2">Video Başlığı (İsteğe Bağlı)</label>
+              <input type="text" id="videotitle" placeholder="Video başlığını girin" class="input-field w-full">
+            </div>
+            <div>
+              <label for="posterurl" class="block text-sm font-semibold mb-2">Poster URL (İsteğe Bağlı)</label>
+              <input type="url" id="posterurl" placeholder="Poster resmi URL" class="input-field w-full">
+            </div>
+          </div>
+          
+          <div>
+            <label for="playerselect" class="block text-sm font-semibold mb-2">Oynatıcı Seç</label>
+            <select id="playerselect" class="input-field w-full">
+              <option value="plyr">Plyr (Önerilen)</option>
+              <option value="sopplayer">SopPlayer</option>
+              <option value="vlitejs">vLiteJS</option>
+              <option value="fluid">Fluid Player</option>
+              <option value="afterglow">Afterglow</option>
+              <option value="mediaelements">MediaElements</option>
+            </select>
+          </div>
+          
+          <button onclick="playVideo()" class="btn-primary w-full py-3 text-lg font-semibold">
+            <i class="fas fa-play mr-2"></i>Videoyu Oynat
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Players Section -->
+  <section id="features" class="py-12 md:py-20">
+    <div class="container mx-auto px-4">
+      <h3 class="text-3xl md:text-4xl font-bold text-center mb-12 gradient-text">Desteklenen Oynatıcılar</h3>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="card player-card p-6 animate-in">
+          <h4 class="text-xl font-bold mb-4"><i class="fas fa-star text-yellow-400 mr-2"></i>Plyr</h4>
+          <p class="text-gray-300 text-sm mb-4">En popüler ve modern HTML5 oynatıcı</p>
+          <button onclick="openPlayer('plyr')" class="btn-primary w-full text-sm">Dene</button>
+        </div>
+
+        <div class="card player-card p-6 animate-in" style="animation-delay: 0.1s">
+          <h4 class="text-xl font-bold mb-4"><i class="fas fa-fire text-red-400 mr-2"></i>SopPlayer</h4>
+          <p class="text-gray-300 text-sm mb-4">Hızlı ve hafif video oynatıcı</p>
+          <button onclick="openPlayer('sopplayer')" class="btn-primary w-full text-sm">Dene</button>
+        </div>
+
+        <div class="card player-card p-6 animate-in" style="animation-delay: 0.2s">
+          <h4 class="text-xl font-bold mb-4"><i class="fas fa-bolt text-blue-400 mr-2"></i>vLiteJS</h4>
+          <p class="text-gray-300 text-sm mb-4">Minimal ve entegre oynatıcı</p>
+          <button onclick="openPlayer('vlitejs')" class="btn-primary w-full text-sm">Dene</button>
+        </div>
+
+        <div class="card player-card p-6 animate-in" style="animation-delay: 0.3s">
+          <h4 class="text-xl font-bold mb-4"><i class="fas fa-stream text-purple-400 mr-2"></i>Fluid Player</h4>
+          <p class="text-gray-300 text-sm mb-4">Profesyonel yayın özellikleri</p>
+          <button onclick="openPlayer('fluid')" class="btn-primary w-full text-sm">Dene</button>
+        </div>
+
+        <div class="card player-card p-6 animate-in" style="animation-delay: 0.4s">
+          <h4 class="text-xl font-bold mb-4"><i class="fas fa-glow text-pink-400 mr-2"></i>Afterglow</h4>
+          <p class="text-gray-300 text-sm mb-4">Şık ve modern görünüm</p>
+          <button onclick="openPlayer('afterglow')" class="btn-primary w-full text-sm">Dene</button>
+        </div>
+
+        <div class="card player-card p-6 animate-in" style="animation-delay: 0.5s">
+          <h4 class="text-xl font-bold mb-4"><i class="fas fa-layer-group text-green-400 mr-2"></i>MediaElements</h4>
+          <p class="text-gray-300 text-sm mb-4">Gelişmiş medya özellikleri</p>
+          <button onclick="openPlayer('mediaelements')" class="btn-primary w-full text-sm">Dene</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="py-12 md:py-20 bg-black/30">
+    <div class="container mx-auto px-4">
+      <h3 class="text-3xl md:text-4xl font-bold text-center mb-12 gradient-text">Özellikler</h3>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="card p-6">
+          <div class="text-3xl mb-4 text-purple-400"><i class="fas fa-video"></i></div>
+          <h4 class="text-lg font-bold mb-2">Çoklu Oynatıcı</h4>
+          <p class="text-gray-300 text-sm">6 farklı profesyonel video oynatıcısı</p>
+        </div>
+
+        <div class="card p-6">
+          <div class="text-3xl mb-4 text-purple-400"><i class="fas fa-closed-captioning"></i></div>
+          <h4 class="text-lg font-bold mb-2">Altyazı Desteği</h4>
+          <p class="text-gray-300 text-sm">SRT, VTT, ASS formatları desteklenir</p>
+        </div>
+
+        <div class="card p-6">
+          <div class="text-3xl mb-4 text-purple-400"><i class="fas fa-mobile-alt"></i></div>
+          <h4 class="text-lg font-bold mb-2">Responsive Tasarım</h4>
+          <p class="text-gray-300 text-sm">Tüm cihazlarda mükemmel uyum</p>
+        </div>
+
+        <div class="card p-6">
+          <div class="text-3xl mb-4 text-purple-400"><i class="fas fa-code"></i></div>
+          <h4 class="text-lg font-bold mb-2">Embed Kodu</h4>
+          <p class="text-gray-300 text-sm">Kolay embed kodu üretimi</p>
+        </div>
+
+        <div class="card p-6">
+          <div class="text-3xl mb-4 text-purple-400"><i class="fas fa-chart-bar"></i></div>
+          <h4 class="text-lg font-bold mb-2">Analytics</h4>
+          <p class="text-gray-300 text-sm">Video görüntülenme istatistikleri</p>
+        </div>
+
+        <div class="card p-6">
+          <div class="text-3xl mb-4 text-purple-400"><i class="fas fa-shield-alt"></i></div>
+          <h4 class="text-lg font-bold mb-2">Güvenli</h4>
+          <p class="text-gray-300 text-sm">Hotlink koruma ve güvenlik özellikleri</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/10 py-8 mt-12">
+    <div class="container mx-auto px-4 text-center text-gray-400">
+      <p class="mb-2">DrivePlyr © 2024 - Tüm Hakları Saklıdır</p>
+      <p class="text-sm">Yapım: <a href="https://github.com/anbarci" target="_blank" class="text-purple-400 hover:text-purple-300">@anbarci</a></p>
+    </div>
+  </footer>
+
+  <script>
+    const API_URL = 'http://localhost:5000/api';
+
+    function extractDriveId(url) {
+      try {
+        const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        return match ? match[1] : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function playVideo() {
+      const videoUrl = document.getElementById('videourl').value;
+      const videoTitle = document.getElementById('videotitle').value || 'Video';
+      const posterUrl = document.getElementById('posterurl').value;
+      const playerType = document.getElementById('playerselect').value;
+
+      if (!videoUrl) {
+        alert('Lütfen Google Drive video linki girin!');
+        return;
+      }
+
+      const params = new URLSearchParams({
+        videoUrl: videoUrl,
+        title: videoTitle,
+        poster: posterUrl,
+        player: playerType
+      });
+
+      window.open(`/player.html?${params.toString()}`, '_blank');
+    }
+
+    function openPlayer(playerType) {
+      const sampleUrl = 'https://drive.google.com/uc?export=download&id=1a2b3c4d5e6f';
+      const params = new URLSearchParams({
+        videoUrl: sampleUrl,
+        title: 'Demo Video',
+        player: playerType
+      });
+      window.open(`/player.html?${params.toString()}`, '_blank');
+    }
+
+    // Enter tuşu ile videoyu oynat
+    document.getElementById('videourl')?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') playVideo();
+    });
+  </script>
+</body>
+</html>
