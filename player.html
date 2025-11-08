@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DrivePlyr - Video Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .player-container { max-width: 100%; height: 100vh; display: flex; flex-direction: column; }
+        .player-wrapper { flex: 1; background: #000; position: relative; display: flex; align-items: center; justify-content: center; }
+        iframe { width: 100%; height: 100%; border: none; }
+        video { width: 100%; height: 100%; }
+        .info-panel { background: #111; color: #fff; padding: 20px; overflow-y: auto; max-height: 300px; border-top: 2px solid #8b5cf6; }
+        .subtitle-control { background: #1a1a1a; padding: 15px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; }
+        .subtitle-select { background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        @media (max-width: 768px) {
+            .info-panel { max-height: 200px; padding: 15px; }
+            .subtitle-control { flex-direction: column; gap: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <!-- Alt Yazı Kontrol -->
+        <div class="subtitle-control">
+            <label for="subtitle-select" class="text-white font-semibold">Altyazı:</label>
+            <select id="subtitle-select" class="subtitle-select">
+                <option value="">Yok</option>
+            </select>
+            <div class="ml-auto flex gap-2">
+                <button onclick="downloadSubtitle('vtt')" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm">
+                    <i class="fas fa-download"></i> VTT
+                </button>
+                <button onclick="downloadSubtitle('srt')" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm">
+                    <i class="fas fa-download"></i> SRT
+                </button>
+            </div>
+        </div>
+
+        <!-- Oynatıcı Alanı -->
+        <div class="player-wrapper">
+            <video id="video-player" controls>
+                <p>Tarayıcınız HTML5 video oynatıcıyı desteklemiyor.</p>
+            </video>
+        </div>
+
+        <!-- Video Bilgisi -->
+        <div class="info-panel">
+            <div class="mb-4">
+                <h2 id="video-title" class="text-xl font-bold text-white mb-2">Video Başlığı</h2>
+                <p id="video-description" class="text-gray-300 text-sm mb-3">Video açıklaması burada gösterilecek...</p>
+                <div class="flex gap-4 text-xs text-gray-400">
+                    <span><i class="fas fa-eye"></i> <span id="video-views">0</span> İzlenme</span>
+                    <span><i class="fas fa-heart"></i> <span id="video-likes">0</span> Beğeni</span>
+                    <span><i class="fas fa-calendar"></i> <span id="video-date">-</span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        let currentVideoId = null;
+        let currentPlayer = null;
+        let subtitles = [];
+
+        // URL parametrelerini al
+        const params = new URLSearchParams(window.location.search);
+        const videoUrl = params.get('videoUrl');
+        const videoTitle = params.get('title') || 'Video';
+        const posterUrl = params.get('poster');
+        const playerType = params.get('player') || 'plyr';
+        const videoId = params.get('videoId');
+
+        // Sayfayı başlat
+        document.addEventListener('DOMContentLoaded', initPlayer);
+
+        async function initPlayer() {
+            document.getElementById('video-title').textContent = videoTitle;
+            document.getElementById('video-player').poster = posterUrl;
+            document.getElementById('video-player').src = videoUrl;
+
+            // Plyr oynatıcısını başlat
+            initPlyrPlayer();
+
+            // Video bilgilerini yükle
+            if (videoId) {
+                loadVideoInfo(videoId);
+                loadSubtitles(videoId);
+            }
+        }
+
+        function initPlyrPlayer() {
+            const player = document.getElementById('video-player');
+            currentPlayer = new Plyr(player, {
+                controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'captions', 'fullscreen'],
+                captions: { active: true, language: 'tr' },
+                quality: { default: 720, options: [360, 480, 720, 1080] }
+            });
+        }
+
+        async function loadVideoInfo(id) {
+            try {
+                const response = await fetch(`${API_URL}/videos/${id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const video = data.video;
+                    document.getElementById('video-title').textContent = video.title;
+                    document.getElementById('video-description').textContent = video.description || '';
+                    document.getElementById('video-views').textContent = video.views.toLocaleString('tr-TR');
+                    document.getElementById('video-likes').textContent = video.likes.toLocaleString('tr-TR');
+                    document.getElementById('video-date').textContent = new Date(video.createdAt).toLocaleDateString('tr-TR');
+                }
+            } catch (error) {
+                console.error('Video bilgisi yüklenirken hata:', error);
+            }
+        }
+
+        async function loadSubtitles(videoId) {
+            try {
+                const response = await fetch(`${API_URL}/subtitles/video/${videoId}`);
+                const data = await response.json();
+                
+                if (data.success && data.subtitles.length > 0) {
+                    subtitles = data.subtitles;
+                    const select = document.getElementById('subtitle-select');
+                    
+                    subtitles.forEach(sub => {
+                        const option = document.createElement('option');
+                        option.value = sub._id;
+                        option.textContent = sub.language;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Altyazılar yüklenirken hata:', error);
+            }
+        }
+
+        async function downloadSubtitle(format) {
+            const subtitleId = document.getElementById('subtitle-select').value;
+            if (!subtitleId) {
+                alert('Lütfen altyazı seçin');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.href = `${API_URL}/subtitles/${subtitleId}/download?format=${format}`;
+            link.download = `subtitle.${format}`;
+            link.click();
+        }
+
+        // İzlenme takibi
+        window.addEventListener('beforeunload', () => {
+            if (videoId && currentPlayer) {
+                fetch(`${API_URL}/videos/${videoId}/view`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device: /Mobile/.test(navigator.userAgent) ? 'mobile' : 'desktop',
+                        browser: navigator.userAgent,
+                        watchTime: currentPlayer.media.currentTime
+                    })
+                });
+            }
+        });
+    </script>
+</body>
+</html>

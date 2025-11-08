@@ -1,106 +1,37 @@
 const mongoose = require('mongoose');
 
-const SubtitleSchema = new mongoose.Schema({
-  video: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Video',
-    required: true
-  },
+const subtitleSchema = new mongoose.Schema({
+  video: { type: mongoose.Schema.Types.ObjectId, ref: 'Video', required: true, index: true },
   language: {
     type: String,
-    required: [true, 'Dil gerekli'],
-    trim: true
+    required: true,
+    enum: ['Turkish', 'English', 'Arabic', 'French', 'German', 'Spanish', 'Italian', 'Portuguese', 'Russian', 'Chinese', 'Japanese', 'Korean']
   },
-  languageCode: {
-    type: String,
-    required: [true, 'Dil kodu gerekli'],
-    trim: true,
-    lowercase: true,
-    match: [/^[a-z]{2}(-[A-Z]{2})?$/, 'Geçerli dil kodu girin (e.g., tr, en, tr-TR)']
-  },
-  label: {
-    type: String,
-    required: [true, 'Etiket gerekli']
-  },
-  content: {
-    type: String,
-    required: [true, 'Altyazı içeriği gerekli']
-  },
-  format: {
-    type: String,
-    enum: ['srt', 'vtt', 'ass', 'ssa'],
-    default: 'srt'
-  },
-  url: {
-    type: String
-  },
-  isDefault: {
-    type: Boolean,
-    default: false
-  },
-  uploadedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  status: {
-    type: String,
-    enum: ['active', 'pending', 'rejected', 'deleted'],
-    default: 'active'
-  },
-  metadata: {
-    fileSize: Number,
-    encoding: String,
-    lineCount: Number
-  }
-}, {
-  timestamps: true
-});
+  languageCode: { type: String, required: true, enum: ['tr', 'en', 'ar', 'fr', 'de', 'es', 'it', 'pt', 'ru', 'zh', 'ja', 'ko'] },
+  label: String,
+  content: { type: String, required: true },
+  format: { type: String, enum: ['srt', 'vtt', 'ass', 'ssa'], default: 'vtt' },
+  uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  isDefault: { type: Boolean, default: false },
+  isApproved: { type: Boolean, default: false },
+  downloadCount: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+}, { timestamps: true });
 
-// Indexes
-SubtitleSchema.index({ video: 1, languageCode: 1 });
-SubtitleSchema.index({ uploadedBy: 1 });
-
-// Convert SRT to VTT
-SubtitleSchema.methods.convertSrtToVtt = function() {
-  if (this.format !== 'srt') {
-    throw new Error('Sadece SRT formatı dönüştürülebilir');
-  }
-  
+subtitleSchema.methods.convertToVTT = function() {
+  if (this.format === 'vtt') return this.content;
   let vtt = 'WEBVTT\n\n';
   const lines = this.content.split('\n');
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    
-    // Skip subtitle number
-    if (/^\d+$/.test(line)) {
-      continue;
+  lines.forEach(line => {
+    if (!line.match(/^\d+$/) && line.trim()) {
+      if (line.match(/\d{2}:\d{2}:\d{2},\d{3}/)) {
+        vtt += line.replace(/,/g, '.') + '\n';
+      } else {
+        vtt += line + '\n';
+      }
     }
-    
-    // Convert timestamp format
-    if (line.includes('-->')) {
-      vtt += line.replace(/,/g, '.') + '\n';
-    } else if (line) {
-      vtt += line + '\n';
-    } else {
-      vtt += '\n';
-    }
-  }
-  
+  });
   return vtt;
 };
 
-// Parse SRT and count lines
-SubtitleSchema.methods.parseMetadata = function() {
-  const lines = this.content.split('\n').filter(line => line.trim());
-  const subtitleBlocks = this.content.split(/\n\s*\n/);
-  
-  this.metadata = {
-    fileSize: Buffer.byteLength(this.content, 'utf8'),
-    encoding: 'UTF-8',
-    lineCount: subtitleBlocks.filter(block => block.trim()).length
-  };
-};
-
-module.exports = mongoose.model('Subtitle', SubtitleSchema);
+module.exports = mongoose.model('Subtitle', subtitleSchema);
