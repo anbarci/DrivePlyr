@@ -1,0 +1,135 @@
+// Modern, semantik ve tam mobil uyumlu admin panel backend entegrasyon örneği (React kullanılmıyor, saf HTML+JS)
+// Başlangıç olarak, giriş komponenti ve dashboard örneği (Tailwind CSS ile responsive)
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DrivePlyr Admin - Giriş</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-800 to-indigo-900">
+  <main class="w-full max-w-sm mx-auto mt-12">
+    <section class="bg-white rounded-xl shadow-lg overflow-hidden p-8 flex flex-col gap-6">
+      <header class="text-center">
+        <img src="../drive-logo.png" alt="DrivePlyr Logo" class="w-20 mx-auto mb-4">
+        <h1 class="text-2xl font-bold text-gray-700">DrivePlyr Admin Panel</h1>
+        <p class="text-gray-500">Yetkili kullanıcı girişi</p>
+      </header>
+      <form id="loginForm" class="flex flex-col gap-4">
+        <label class="block">
+          <span class="block text-sm font-semibold text-gray-600 mb-1">E-posta</span>
+          <input name="email" type="email" required autocomplete="email" placeholder="E-posta adresi"
+                 class="w-full border border-gray-300 rounded py-2 px-4 focus:border-purple-600 focus:outline-none" />
+        </label>
+        <label class="block">
+          <span class="block text-sm font-semibold text-gray-600 mb-1">Şifre</span>
+          <input name="password" type="password" required autocomplete="current-password" placeholder="Şifre"
+                 class="w-full border border-gray-300 rounded py-2 px-4 focus:border-purple-600 focus:outline-none" />
+        </label>
+        <button type="submit" class="w-full bg-purple-700 hover:bg-purple-800 text-white py-2 rounded font-medium transition">Giriş Yap</button>
+        <span id="errorMsg" class="hidden text-red-600 text-sm font-semibold text-center"></span>
+      </form>
+    </section>
+    <footer class="text-xs text-white mt-5 text-center opacity-70">&copy; 2025 anbarci | Tüm hakları saklıdır.</footer>
+  </main>
+  <script>
+    const form = document.getElementById('loginForm');
+    const errorMsg = document.getElementById('errorMsg');
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      errorMsg.classList.add('hidden');
+      const email = form.email.value;
+      const password = form.password.value;
+      try {
+        const res = await fetch('http://localhost:5000/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if(data.status === 'success') {
+          localStorage.setItem('token', data.token);
+          window.location.href = 'dashboard.html';
+        } else {
+          errorMsg.textContent = data.errors ? data.errors.map(e => e.msg).join(' / ') : (data.message || 'Giriş başarısız!');
+          errorMsg.classList.remove('hidden');
+        }
+      } catch(err) {
+        errorMsg.textContent = 'Sunucuya bağlanılamadı!';
+        errorMsg.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
+
+<!-- Dashboard örneği (dashboard.html) -->
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DrivePlyr Admin - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <header class="bg-gradient-to-r from-purple-800 to-indigo-700 text-white py-5 px-4">
+    <div class="flex justify-between items-center max-w-4xl mx-auto">
+      <h2 class="text-lg font-bold tracking-wide">DrivePlyr <span class="font-light">Yönetim Ekranı</span></h2>
+      <button id="logoutBtn" class="py-1 px-4 rounded bg-red-500 hover:bg-red-700 font-semibold">Çıkış</button>
+    </div>
+  </header>
+  <main class="max-w-4xl mx-auto p-4">
+      <h3 class="text-xl font-bold mt-6 mb-4 text-gray-700">Hoş Geldiniz!</h3>
+      <section id="stats" class="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-8"></section>
+      <section>
+        <h4 class="font-semibold text-gray-600 mb-2">Son Videolar</h4>
+        <ul id="videoList" class="divide-y divide-gray-200 bg-white rounded-lg shadow"></ul>
+      </section>
+  </main>
+  <script>
+    const token = localStorage.getItem('token');
+    if(!token) window.location.href = 'login.html';
+    // Logout
+    document.getElementById('logoutBtn').onclick = function() {
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    };
+    // Panel Stats
+    async function loadStats() {
+      const res = await fetch('http://localhost:5000/api/videos?limit=4', {
+        headers: { 'Authorization': 'Bearer '+token }
+      });
+      const vids = (await res.json()).data || [];
+      document.getElementById('stats').innerHTML = [
+        ['Toplam', vids.length],
+        ['Görünür', vids.filter(v=>v.isPublic).length],
+        ['Kategoriler', [...new Set(vids.map(v=>v.category))].length],
+        ['Bugün', vids.filter(v=>new Date(v.createdAt).toDateString()===new Date().toDateString()).length]
+      ].map(([t,v])=>`<div class='bg-white p-3 rounded-xl flex flex-col items-center shadow'>
+      <span class='font-bold text-purple-700 text-2xl'>${v}</span><span class='text-xs text-gray-500 mt-1'>${t}</span></div>`).join('');
+    }
+    // Recent Videos
+    async function loadVideos() {
+      const res = await fetch('http://localhost:5000/api/videos?limit=5', {
+        headers: { 'Authorization': 'Bearer '+token }
+      });
+      const videos = (await res.json()).data;
+      document.getElementById('videoList').innerHTML = videos.map(v => `
+        <li class='flex items-center gap-3 p-2'>
+          <img src='${v.poster||"https://via.placeholder.com/80"}' class='w-16 h-10 object-cover rounded-md border'/>
+          <div class='flex-grow'>
+            <span class='font-semibold'>${v.title}</span><br/>
+            <small class='text-gray-400'>${v.category||"Genel"}</small>
+          </div>
+          <span class='text-xs text-gray-500'>${v.views||0} izlenme</span>
+        </li>`).join('');
+    }
+    loadStats();
+    loadVideos();
+  </script>
+</body>
+</html>
