@@ -1,77 +1,78 @@
-// Authentication System
-class AuthManager {
-    constructor() {
-        this.users = [
-            { username: 'admin', password: 'admin123', role: 'admin' },
-            { username: 'demo', password: 'demo123', role: 'user' }
-        ];
-        this.init();
+const API_URL = 'http://localhost:5000/api';
+
+const authManager = {
+  token: localStorage.getItem('token'),
+  user: JSON.parse(localStorage.getItem('user') || '{}'),
+
+  async login(email, password) {
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        this.token = data.token;
+        this.user = data.user;
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Giriş hatası:', error);
+      return false;
     }
+  },
 
-    init() {
-        // Check if already logged in
-        if (this.isLoggedIn() && window.location.pathname.includes('login.html')) {
-            window.location.href = 'index.html';
-        }
+  async register(username, email, password) {
+    try {
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password })
+      });
+      const data = await response.json();
 
-        // Setup login form
-        const loginForm = document.getElementById('loginForm');
-        if (loginForm) {
-            loginForm.addEventListener('submit', (e) => this.handleLogin(e));
-        }
+      if (data.success) {
+        this.token = data.token;
+        this.user = data.user;
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Kayıt hatası:', error);
+      return false;
     }
+  },
 
-    handleLogin(e) {
-        e.preventDefault();
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
+  logout() {
+    this.token = null;
+    this.user = {};
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/admin/login.html';
+  },
 
-        const user = this.users.find(u => u.username === username && u.password === password);
+  isAuthenticated() {
+    return !!this.token;
+  },
 
-        if (user) {
-            const session = {
-                username: user.username,
-                role: user.role,
-                loginTime: new Date().toISOString()
-            };
-            localStorage.setItem('driveplyr_session', JSON.stringify(session));
-            window.location.href = 'index.html';
-        } else {
-            this.showError('Kullanıcı adı veya şifre hatalı!');
-        }
-    }
+  getAuthHeader() {
+    return { 'Authorization': `Bearer ${this.token}` };
+  }
+};
 
-    showError(message) {
-        const errorDiv = document.getElementById('errorMessage');
-        const errorText = document.getElementById('errorText');
-        if (errorDiv && errorText) {
-            errorText.textContent = message;
-            errorDiv.classList.remove('hidden');
-            setTimeout(() => errorDiv.classList.add('hidden'), 5000);
-        }
-    }
-
-    isLoggedIn() {
-        const session = localStorage.getItem('driveplyr_session');
-        return session !== null;
-    }
-
-    getSession() {
-        const session = localStorage.getItem('driveplyr_session');
-        return session ? JSON.parse(session) : null;
-    }
-
-    logout() {
-        localStorage.removeItem('driveplyr_session');
-        window.location.href = 'login.html';
-    }
-
-    requireAuth() {
-        if (!this.isLoggedIn()) {
-            window.location.href = 'login.html';
-        }
-    }
-}
-
-// Initialize
-const authManager = new AuthManager();
+// Sayfa yüklenmesinde giriş kontrolü
+window.addEventListener('load', () => {
+  if (window.location.pathname.includes('/admin/index.html') && !authManager.isAuthenticated()) {
+    window.location.href = '/admin/login.html';
+  }
+  if (authManager.user.username) {
+    document.getElementById('username').textContent = authManager.user.username;
+  }
+});
