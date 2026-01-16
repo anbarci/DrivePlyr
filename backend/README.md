@@ -346,6 +346,12 @@ GET /api/analytics/video/:videoId?days=30
 Authorization: Bearer <token>
 ```
 
+**Get Video Panel (Owner/Admin)**
+```http
+GET /api/analytics/video/:videoId/panel?days=30
+Authorization: Bearer <token>
+```
+
 **Get Trending Videos**
 ```http
 GET /api/analytics/trending?days=7&limit=10
