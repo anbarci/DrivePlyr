@@ -2,112 +2,81 @@
 function getparam(a,e){return e||(e=window.location.href),new URL(e).searchParams.get(a)}
 let s=a=>document.getElementById(a);
 
+function getIdFromUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/[-\w]{25,}/);
+  return match ? match[0] : null;
+}
 
-function getIdFromUrl(url) { return url.match(/[-\w]{25,}/); }
-let apikey = 'AIzaSyD739-eb6NzS_KbVJq1K8ZAxnrMfkIqPyw';
+// Module-level variable; also exposed as window.base for backward compatibility
+let _base = null;
 
 let get=()=>{
   getbase();
 }
 let getbase=()=>{
-    let ply = [];
-  /*
-    ply.videourl = `https://www.googleapis.com/drive/v3/files/${getIdFromUrl(s('videourl').value) }?alt=media&key=${apikey}`;
-
-  
-  
-  let poster = "";
-      if(s('posterurl').value){
-       poster = s('posterurl').value ;}
-  else {
-    poster = 'https://lh3.googleusercontent.com/d/'+getIdFromUrl(s('videourl').value);
+  const urlInput = s('videourl');
+  const urlValue = urlInput ? urlInput.value.trim() : '';
+  if (!urlValue) {
+    alert('Please enter a valid Google Drive URL.');
+    return null;
   }
-    ply.posterurl = poster ; */
-  
-    ply.id =  getIdFromUrl(s('videourl').value);
-      
-   // ply.videotitle = s('videotitle').value;
-    console.log(ply);
-  
-    var arr = JSON.stringify(Object.assign({}, ply))
-    console.log(btoa(arr));
-    window.base =btoa(arr);
-    iframe();
-    return btoa(arr);
+  const id = getIdFromUrl(urlValue);
+  if (!id) {
+    alert('Could not extract a valid Drive ID from the provided URL.');
+    return null;
+  }
+  const ply = { id };
+  const arr = JSON.stringify(Object.assign({}, ply));
+  _base = btoa(arr);
+  window.base = _base;
+  iframe();
+  return _base;
 }
 
+// Player page definitions
+const PLAYERS = [
+  { key: 'sopplayer',     page: 'sopplayer.html' },
+  { key: 'plyr',          page: 'plyr.html' },
+  { key: 'fluid',         page: 'fluid.html' },
+  { key: 'afterglow',     page: 'afterglow.html' },
+  { key: 'mediaelements', page: 'mediaelements.html' },
+  { key: 'vlitejs',       page: 'vlitejs.html' },
+];
 
-//Player Openers (diff. func. coding intentionally)
-let opensp=()=> { window.open('https://sh20raj.github.io/DrivePlyr/sopplayer.html?id='+base)}
-let openplyr=()=> { window.open('https://sh20raj.github.io/DrivePlyr/plyr.html?id='+base)}
-let openfluid=()=> { window.open('https://sh20raj.github.io/DrivePlyr/fluid.html?id='+base)}
-let openafterglow=()=> { window.open('https://sh20raj.github.io/DrivePlyr/afterglow.html?id='+base)}
-let openmediaelements=()=> { window.open('https://sh20raj.github.io/DrivePlyr/mediaelements.html?id='+base)}
-let openvlitejs=()=> { window.open('https://sh20raj.github.io/DrivePlyr/vlitejs.html?id='+base)}
-
-
-let pmsg = 'Copy Embed Code' ;
-//Player Embedders
-let embedsp=()=> {
-  prompt(pmsg,`<iframe width="560" height="315" 
-scrolling="no"
-src="https://sh20raj.github.io/DrivePlyr/sopplayer.html?id=${base}" 
-frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; 
-gyroscope; picture-in-picture" allowfullscreen>
-</iframe>`)
-}
-let embedplyr=()=> {
-  prompt(pmsg,`<iframe width="560" height="315" 
-scrolling="no"
-src="https://sh20raj.github.io/DrivePlyr/plyr.html?id=${base}" 
-frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; 
-gyroscope; picture-in-picture" allowfullscreen>
-</iframe>`)
-}
-let embedfluid=()=> {
-  prompt(pmsg,`<iframe width="560" height="315" 
-scrolling="no"
-src="https://sh20raj.github.io/DrivePlyr/fluid.html?id=${base}" 
-frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; 
-gyroscope; picture-in-picture" allowfullscreen>
-</iframe>`)
-}
-let embedafterglow=()=> {
-  prompt(pmsg,`<iframe width="560" height="315" 
-scrolling="no"
-src="https://sh20raj.github.io/DrivePlyr/afterglow.html?id=${base}" 
-frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; 
-gyroscope; picture-in-picture" allowfullscreen>
-</iframe>`)
-}
-let embedmediaelements=()=> {
-  prompt(pmsg,`<iframe width="560" height="315" 
-scrolling="no"
-src="https://sh20raj.github.io/DrivePlyr/mediaelements.html?id=${base}" 
-frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; 
-gyroscope; picture-in-picture" allowfullscreen>
-</iframe>`)
-}
-let embedvlitejs=()=> {
-  prompt(pmsg,`<iframe width="560" height="315" 
-scrolling="no"
-src="https://sh20raj.github.io/DrivePlyr/vlitejs.html?id=${base}" 
-frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; 
-gyroscope; picture-in-picture" allowfullscreen>
-</iframe>`);
+// Factory: open player in a new window
+function openPlayer(page) {
+  if (!_base) { alert('Please generate a player link first by entering a Drive URL and clicking GET.'); return; }
+  window.open(PLAYER_BASE_URL + page + '?id=' + _base);
 }
 
+// Factory: show embed code prompt
+const pmsg = 'Copy Embed Code';
+function embedPlayer(page) {
+  if (!_base) { alert('Please generate a player link first by entering a Drive URL and clicking GET.'); return; }
+  prompt(pmsg, `<iframe width="560" height="315" \nscrolling="no"\nsrc="${PLAYER_BASE_URL}${page}?id=${_base}" \nframeborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; \ngyroscope; picture-in-picture" allowfullscreen>\n</iframe>`);
+}
 
+// Player openers
+let opensp           = () => openPlayer('sopplayer.html');
+let openplyr         = () => openPlayer('plyr.html');
+let openfluid        = () => openPlayer('fluid.html');
+let openafterglow    = () => openPlayer('afterglow.html');
+let openmediaelements= () => openPlayer('mediaelements.html');
+let openvlitejs      = () => openPlayer('vlitejs.html');
 
-let iframe=()=> {
-  s('afterglow').src= 'https://sh20raj.github.io/DrivePlyr/afterglow.html?id='+base;
-  s('fluid').src='https://sh20raj.github.io/DrivePlyr/fluid.html?id='+base;
-  s('plyr').src='https://sh20raj.github.io/DrivePlyr/plyr.html?id='+base;
+// Player embedders
+let embedsp           = () => embedPlayer('sopplayer.html');
+let embedplyr         = () => embedPlayer('plyr.html');
+let embedfluid        = () => embedPlayer('fluid.html');
+let embedafterglow    = () => embedPlayer('afterglow.html');
+let embedmediaelements= () => embedPlayer('mediaelements.html');
+let embedvlitejs      = () => embedPlayer('vlitejs.html');
 
-  s('vlitejs').src='https://sh20raj.github.io/DrivePlyr/vlitejs.html?id='+base;
-  s('mediaelements').src='https://sh20raj.github.io/DrivePlyr/mediaelements.html?id='+base;
-  
-    s('sopplayer').src='https://sh20raj.github.io/DrivePlyr/sopplayer.html?id='+base;
-  
+let iframe=()=>{
+  PLAYERS.forEach(({ key, page }) => {
+    const el = s(key);
+    if (el) el.src = PLAYER_BASE_URL + page + '?id=' + _base;
+  });
 }
 
