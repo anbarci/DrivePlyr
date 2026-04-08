@@ -89,7 +89,10 @@ app.use((req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(err.statusCode || 500).json({
+  const statusCode = (typeof err.statusCode === 'number' && err.statusCode >= 100 && err.statusCode < 600)
+    ? err.statusCode
+    : 500;
+  res.status(statusCode).json({
     status: 'error',
     message: err.message || 'Sunucu hatası',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
